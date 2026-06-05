@@ -35,17 +35,17 @@
   "build": {
     "appId": "com.pnledger.app",
     "productName": "P n Ledger",
-    "publish": {
+    "publish": [
       {
         "provider": "github",
         "owner": "kmccubbin0373",
         "repo": "pnledger"
       }
-    }
-    "files": {
+    ],
+    "files": [
       "dist/**/*",
       "electron/**/*"
-    },
+    ],
     "directories": {
       "output": "release"
     },

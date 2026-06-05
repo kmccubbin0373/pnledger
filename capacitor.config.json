@@ -1,0 +1,8 @@
+{
+  "appId": "com.pnledger.app",
+  "appName": "P n Ledger",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

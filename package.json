@@ -1,6 +1,6 @@
 {
   "name": "pnledger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "P n Ledger — a local-first futures and options day trading journal",
   "author": "Kyle",
@@ -19,6 +19,7 @@
     "dexie-react-hooks": "^1.1.7",
     "electron-updater": "^6.8.3",
     "lucide-react": "^0.408.0",
+    "mammoth": "^1.12.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7"
@@ -42,6 +43,7 @@
         "repo": "pnledger"
       }
     ],
+    "artifactName": "PnLedger-Setup-${version}.${ext}",
     "files": [
       "dist/**/*",
       "electron/**/*"

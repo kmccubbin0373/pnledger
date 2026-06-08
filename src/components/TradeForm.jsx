@@ -3,8 +3,9 @@ import { Plus, X, Trash2, Image as ImageIcon, NotebookPen, Copy } from 'lucide-r
 import { Modal } from './ui'
 import { useApp } from '../context/AppContext'
 import db from '../db/db'
-import { computePnl, resolveInstrument, totalExitQty } from '../lib/pnl'
+import { computePnl, resolveInstrument, totalExitQty, initialRisk } from '../lib/pnl'
 import { fmtMoney, todayISO } from '../lib/format'
+import ScreenshotTimeline from './ScreenshotTimeline'
 
 const GRADES = ['A+', 'B', 'C', 'D']
 const blankExit = () => ({ price: '', qty: '', time: '' })
@@ -26,6 +27,8 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
   const [entryPrice, setEntryPrice] = useState(trade?.entryPrice ?? '')
   const [quantity, setQuantity] = useState(trade?.quantity ?? '')
   const [stopPrice, setStopPrice] = useState(trade?.stopPrice ?? '')
+  const [mfe, setMfe] = useState(trade?.mfe ?? '')
+  const [mae, setMae] = useState(trade?.mae ?? '')
   const [optionType, setOptionType] = useState(trade?.optionType || 'call')
   const [strike, setStrike] = useState(trade?.strike ?? '')
   const [expiry, setExpiry] = useState(trade?.expiry || '')
@@ -50,9 +53,16 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
     direction,
     entryPrice,
     quantity,
+    stopPrice,
     exits: exits.map((e) => ({ price: e.price, qty: e.qty })),
   }
   const pnl = useMemo(() => computePnl(draft, account, instrumentsBySymbol), [draft, account, instrumentsBySymbol])
+  const rPreview = useMemo(() => {
+    const inst = resolveInstrument(draft, instrumentsBySymbol)
+    const risk = initialRisk(draft, inst)
+    if (!risk || risk <= 0) return null
+    return pnl.net / risk
+  }, [draft, instrumentsBySymbol, pnl.net])
   const exitQty = totalExitQty(draft)
   const qtyMismatch = Number(quantity) > 0 && exitQty > 0 && exitQty !== Number(quantity)
 
@@ -78,12 +88,13 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
     for (const f of Array.from(fileList)) {
       if (!f.type.startsWith('image/')) continue
       const blob = await f.arrayBuffer().then((buf) => new Blob([buf], { type: f.type }))
-      incoming.push({ name: f.name, type: f.type, blob })
+      incoming.push({ name: f.name, type: f.type, blob, label: '' })
     }
     if (incoming.length) setShots((s) => [...s, ...incoming])
   }
 
   const removeShot = (i) => setShots((s) => s.filter((_, j) => j !== i))
+  const labelShot = (i, label) => setShots((s) => s.map((x, j) => (j === i ? { ...x, label } : x)))
 
   const buildTrade = () => ({
     accountId: Number(accountId),
@@ -96,6 +107,8 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
     entryPrice: Number(entryPrice) || 0,
     quantity: Number(quantity) || 0,
     stopPrice: stopPrice === '' ? null : Number(stopPrice),
+    mfe: mfe === '' ? null : Number(mfe),
+    mae: mae === '' ? null : Number(mae),
     optionType: kind === 'option' ? optionType : null,
     strike: kind === 'option' && strike !== '' ? Number(strike) : null,
     expiry: kind === 'option' ? expiry || null : null,
@@ -256,6 +269,22 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
           </div>
 
           <div className="section-label">
+            Excursion <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>— optional, powers exit efficiency</span>
+          </div>
+          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div className="field">
+              <label>Max favorable ({kind === 'option' ? 'premium' : 'points'})</label>
+              <input type="number" step="any" value={mfe} onChange={(e) => setMfe(e.target.value)}
+                placeholder="How far it went your way before you exited" />
+            </div>
+            <div className="field">
+              <label>Max adverse ({kind === 'option' ? 'premium' : 'points'})</label>
+              <input type="number" step="any" value={mae} onChange={(e) => setMae(e.target.value)}
+                placeholder="How far it went against you before it turned" />
+            </div>
+          </div>
+
+          <div className="section-label">
             Exits <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}>— log all partials after the trade closes</span>
           </div>
           <table className="tbl" style={{ marginBottom: 6 }}>
@@ -306,6 +335,11 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
             {!pnl.hasCommission && (
               <span className="dim" style={{ fontSize: 12 }}>no commission set for this account</span>
             )}
+            {rPreview != null && (
+              <span className="num" style={{ fontSize: 12, fontWeight: 600, color: rPreview >= 0 ? 'var(--green-d)' : 'var(--red-d)' }}>
+                {rPreview >= 0 ? '+' : ''}{rPreview.toFixed(2)}R
+              </span>
+            )}
             {qtyMismatch && (
               <span className="num" style={{ fontSize: 12, color: 'var(--amber-d)' }}>
                 exits ({exitQty}) ≠ entry ({Number(quantity)})
@@ -337,9 +371,15 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
           {shots.length > 0 && (
             <div className="tagwrap" style={{ marginTop: 8 }}>
               {shots.map((s, i) => (
-                <ShotThumb key={i} shot={s} onRemove={() => removeShot(i)} />
+                <ShotThumb key={i} shot={s} onRemove={() => removeShot(i)} onLabel={(lbl) => labelShot(i, lbl)} />
               ))}
             </div>
+          )}
+          {shots.length > 0 && shots.some((s) => s.label) && (
+            <>
+              <div className="section-label">Chart review</div>
+              <ScreenshotTimeline shots={shots} />
+            </>
           )}
 
           <div className="section-label">Setup grade</div>
@@ -397,7 +437,9 @@ export default function TradeForm({ trade, defaultAccountId, onClose }) {
   )
 }
 
-function ShotThumb({ shot, onRemove }) {
+export const SHOT_LABELS = ['Entry', 'HTF', 'Alert', 'Exit', 'Other']
+
+function ShotThumb({ shot, onRemove, onLabel }) {
   const [url, setUrl] = useState(null)
   useEffect(() => {
     const u = URL.createObjectURL(shot.blob)
@@ -405,8 +447,13 @@ function ShotThumb({ shot, onRemove }) {
     return () => URL.revokeObjectURL(u)
   }, [shot])
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 3 }}>
       {url && <img src={url} className="thumb" alt={shot.name} />}
+      <select value={shot.label || ''} onChange={(e) => onLabel?.(e.target.value)}
+        style={{ fontSize: 10, padding: '1px 2px' }} onClick={(e) => e.stopPropagation()}>
+        <option value="">Label…</option>
+        {SHOT_LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
+      </select>
       <button className="icon-btn" onClick={onRemove} aria-label="Remove"
         style={{ position: 'absolute', top: -6, right: -6, background: 'var(--surface)', border: '0.5px solid var(--border-strong)', borderRadius: '50%', padding: 2 }}>
         <Trash2 size={12} />

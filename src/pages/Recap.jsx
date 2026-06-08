@@ -10,7 +10,7 @@ import { parseJournalText, exportAsTxt, exportAsMd } from '../lib/recapParser'
 const GRADES = ['A+', 'A', 'B', 'C', 'D', 'F']
 
 export default function Recap() {
-  const { recaps, scopedTrades, accountsById, instrumentsBySymbol } = useApp()
+  const { recaps, scopedTrades, accountsById, instrumentsBySymbol, plans } = useApp()
   const [open, setOpen] = useState(null)
   const [importPreview, setImportPreview] = useState(null) // { parsed, raw } or null
   const [importing, setImporting] = useState(false)
@@ -116,7 +116,7 @@ export default function Recap() {
         </div>
       )}
 
-      {open && <RecapModal recap={open} onClose={() => setOpen(null)} />}
+      {open && <RecapModal recap={open} plan={plans.find((p) => p.date === open.date) || null} onClose={() => setOpen(null)} />}
       {importPreview && (
         <RecapModal
           recap={{ date: todayISO(), ...importPreview.parsed }}
@@ -128,7 +128,7 @@ export default function Recap() {
   )
 }
 
-function RecapModal({ recap, onClose, importedFrom }) {
+function RecapModal({ recap, onClose, importedFrom, plan }) {
   const editing = !!recap.id
   const [f, setF] = useState({
     date: recap.date || todayISO(),
@@ -144,6 +144,7 @@ function RecapModal({ recap, onClose, importedFrom }) {
     didWell: recap.didWell || '',
     toFix: recap.toFix || '',
     grade: recap.grade || '',
+    followedPlan: recap.followedPlan || '',
     // optional mental-state (from the old "should I trade" fields, now just notes)
     sleep: recap.sleep || '', energy: recap.energy || '', stress: recap.stress || '',
   })
@@ -188,6 +189,24 @@ function RecapModal({ recap, onClose, importedFrom }) {
         <div className="field"><label>What setup worked best?</label><input value={f.bestSetup} onChange={set('bestSetup')} /></div>
         <div className="field"><label>What setup failed?</label><input value={f.failedSetup} onChange={set('failedSetup')} /></div>
       </div>
+
+      {plan && (
+        <>
+          <div className="section-label">Today's plan</div>
+          <div style={{ background: 'var(--surface-2)', border: '0.5px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 12px', fontSize: 12.5, color: 'var(--text-2)' }}>
+            {plan.bias && <div><strong className="dim">Bias:</strong> {plan.bias}</div>}
+            {plan.lookingFor && <div style={{ marginTop: 3 }}><strong className="dim">Hunting:</strong> {plan.lookingFor}</div>}
+            {plan.avoiding && <div style={{ marginTop: 3 }}><strong className="dim">Avoiding:</strong> {plan.avoiding}</div>}
+            {plan.stopEarlyIf && <div style={{ marginTop: 3 }}><strong className="dim">Stop early if:</strong> {plan.stopEarlyIf}</div>}
+          </div>
+          <div className="field" style={{ marginTop: 10 }}>
+            <label>Did you follow the plan?</label>
+            <select value={f.followedPlan} onChange={set('followedPlan')}>
+              <option value="">—</option><option>Yes</option><option>Mostly</option><option>No</option>
+            </select>
+          </div>
+        </>
+      )}
 
       <div className="section-label">Discipline</div>
       <div className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>

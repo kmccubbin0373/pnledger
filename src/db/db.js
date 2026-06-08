@@ -39,4 +39,23 @@ db.version(2).stores({
   warningAcks: '&key', // key = stable warning id the user has acknowledged globally
 })
 
+// v3 — adds the trading-plan module (one plan per day) and saved report views
+// (saved filter configurations on the Trades page). New trade fields mfe/mae and
+// per-screenshot labels are non-indexed, so they need no migration here.
+db.version(3).stores({
+  firms: '++id, name, kind',
+  accounts: '++id, firmId, status, accountType, archived',
+  instruments: '++id, &symbol, kind',
+  trades: '++id, accountId, date, instrumentSymbol, strategy, instrumentKind',
+  strategies: '++id, &name, archived',
+  ruleItems: '++id, order, archived',
+  mistakeTags: '++id, &text, archived',
+  recaps: '++id, date',
+  accountEvents: '++id, accountId, date, type',
+  prefs: '++id',
+  warningAcks: '&key',
+  plans: '++id, date',          // one daily trading plan, looked up by date
+  savedViews: '++id, name',     // saved Trades-page filter configurations
+})
+
 export default db

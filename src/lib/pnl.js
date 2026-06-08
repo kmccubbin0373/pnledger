@@ -131,3 +131,86 @@ export function avgExitPrice(trade) {
   const sum = (trade.exits || []).reduce((s, ex) => s + (Number(ex.price) || 0) * (Number(ex.qty) || 0), 0)
   return sum / qty
 }
+
+// ---------------------------------------------------------------------------
+// Risk / R-multiple / excursion helpers (v0.2.0)
+// ---------------------------------------------------------------------------
+
+// Initial dollar risk implied by the stop. Returns null when there is no usable
+// stop (no stop set, stop equal to entry, or missing qty/instrument). Futures use
+// tick math; options use the contract multiplier on premium distance.
+export function initialRisk(trade, instrument) {
+  if (!instrument) return null
+  const entry = Number(trade.entryPrice)
+  const stopRaw = trade.stopPrice
+  if (!entry || stopRaw == null || stopRaw === '' || Number.isNaN(Number(stopRaw))) return null
+  const qty = Number(trade.quantity) || 0
+  if (!qty) return null
+  const dist = Math.abs(entry - Number(stopRaw))
+  if (dist === 0) return null
+  if (trade.instrumentKind === 'option') {
+    const mult = instrument.multiplier || instrument.pointValue || 100
+    return dist * mult * qty
+  }
+  const tickSize = Number(instrument.tickSize) || 0.25
+  const tickValue = Number(instrument.tickValue) || 0
+  return (dist / tickSize) * tickValue * qty
+}
+
+// Realized R-multiple = net P&L / initial risk. Net (not gross) so it reflects the
+// true outcome including commission. Returns null when risk is undefined.
+export function rMultiple(trade, account, instrument) {
+  const risk = initialRisk(trade, instrument)
+  if (!risk || risk <= 0) return null
+  const net = grossPnl(trade, instrument) - commission(trade, account)
+  return net / risk
+}
+
+// MFE/MAE exit efficiency. mfe/mae are user-entered POSITIVE point excursions
+// (price units: handles for futures, premium for options). realized = pointsMoved
+// (signed, volume-weighted). efficiency = realized / mfe, clamped 0..1.
+// cutEarly is only flagged on winners that captured under half of the move.
+export function exitEfficiency(trade) {
+  const mfeN = Number(trade.mfe)
+  const maeN = Number(trade.mae)
+  const realized = pointsMoved(trade)
+  const out = {
+    mfe: Number.isFinite(mfeN) && mfeN > 0 ? mfeN : null,
+    mae: Number.isFinite(maeN) && maeN > 0 ? maeN : null,
+    realized,
+    efficiency: null,
+    leftOnTable: null,
+    cutEarly: false,
+  }
+  if (out.mfe == null) return out
+  out.efficiency = Math.max(0, Math.min(1, realized / out.mfe))
+  out.leftOnTable = Math.max(0, out.mfe - Math.max(0, realized))
+  out.cutEarly = out.efficiency < 0.5 && realized > 0
+  return out
+}
+
+// Expectancy across a set of already-computed net values: average net per trade.
+export function expectancyDollars(nets) {
+  if (!nets.length) return 0
+  return nets.reduce((s, n) => s + n, 0) / nets.length
+}
+
+// Expectancy in R across an array of R-multiples (ignores nulls).
+export function expectancyR(rValues) {
+  const defined = rValues.filter((r) => r != null && Number.isFinite(r))
+  if (!defined.length) return null
+  return defined.reduce((s, r) => s + r, 0) / defined.length
+}
+
+// Max peak-to-trough drawdown given a cumulative equity series (array of numbers).
+// Returns a positive dollar number (0 if never underwater).
+export function maxDrawdown(equitySeries) {
+  let peak = -Infinity
+  let maxDD = 0
+  for (const v of equitySeries) {
+    if (v > peak) peak = v
+    const dd = peak - v
+    if (dd > maxDD) maxDD = dd
+  }
+  return maxDD
+}

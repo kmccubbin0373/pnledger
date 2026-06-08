@@ -10,6 +10,7 @@ import { applyTheme } from './lib/theme'
 import { computeWarnings, warningInContext } from './lib/warnings'
 
 import Dashboard from './pages/Dashboard'
+import Plan from './pages/Plan'
 import Trades from './pages/Trades'
 import Analytics from './pages/Analytics'
 import Recap from './pages/Recap'
@@ -68,6 +69,7 @@ function Shell() {
 
   const page = {
     Dashboard: <Dashboard onNewTrade={openNewTrade} />,
+    Plan: <Plan />,
     Trades: <Trades />,
     Analytics: <Analytics />,
     Recap: <Recap />,

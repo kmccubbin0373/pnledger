@@ -6,7 +6,7 @@ import { todayISO } from '../lib/format'
 import db from '../db/db'
 import { applyTheme } from '../lib/theme'
 
-const TABS = ['Dashboard', 'Trades', 'Analytics', 'Recap', 'Calendar', 'Import', 'Accounts', 'Settings']
+const TABS = ['Dashboard', 'Plan', 'Trades', 'Analytics', 'Recap', 'Calendar', 'Import', 'Accounts', 'Settings']
 
 // Dot color reflects how well rules were followed across logged trades (recent
 // 30 trades). Green = disciplined, amber = slipping, red = mostly broken.

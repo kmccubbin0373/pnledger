@@ -1,14 +1,78 @@
 import { useState } from 'react'
-import { Plus, X, Tag, ListChecks, AlertTriangle, Gauge, Download, Upload, Pencil, RotateCcw } from 'lucide-react'
+import { Plus, X, Tag, ListChecks, AlertTriangle, Gauge, Download, Upload, Pencil, RotateCcw, Share2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Modal } from '../components/ui'
 import db from '../db/db'
 import { fmtNum } from '../lib/format'
+import { computePnl, rMultiple, expectancyR, maxDrawdown } from '../lib/pnl'
+import { buildReportHTML, buildReportMarkdown } from '../lib/report'
 
 export default function Settings() {
-  const { strategies, ruleItems, mistakeTags, instruments, prefs } = useApp()
+  const { strategies, ruleItems, mistakeTags, instruments, prefs, scopedTrades, accountsById, instrumentsBySymbol } = useApp()
   const [instModal, setInstModal] = useState(null)
   const [busy, setBusy] = useState('')
+  const [range, setRange] = useState('all') // all | 30 | 90 | ytd
+
+  const buildStats = () => {
+    const now = new Date()
+    const cutoff =
+      range === '30' ? new Date(now.getTime() - 30 * 864e5) :
+      range === '90' ? new Date(now.getTime() - 90 * 864e5) :
+      range === 'ytd' ? new Date(now.getFullYear(), 0, 1) : null
+    const rangeLabel = range === 'all' ? 'All time' : range === 'ytd' ? 'Year to date' : `Last ${range} days`
+
+    let rows = scopedTrades
+      .map((t) => ({ t, net: computePnl(t, accountsById[t.accountId], instrumentsBySymbol).net }))
+      .filter((r) => r.t.date)
+    if (cutoff) {
+      const c = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
+      rows = rows.filter((r) => r.t.date >= c)
+    }
+    rows.sort((a, b) => (a.t.date || '').localeCompare(b.t.date || '') || (a.t.createdAt || 0) - (b.t.createdAt || 0))
+
+    const net = rows.reduce((s, r) => s + r.net, 0)
+    const wins = rows.filter((r) => r.net > 0)
+    const losses = rows.filter((r) => r.net < 0)
+    const grossWin = wins.reduce((s, r) => s + r.net, 0)
+    const grossLoss = Math.abs(losses.reduce((s, r) => s + r.net, 0))
+    let cum = 0; const equity = rows.map((r) => { cum += r.net; return Math.round(cum * 100) / 100 })
+    const byStratMap = {}
+    rows.forEach((r) => { const k = r.t.strategy || 'Untagged'; byStratMap[k] = (byStratMap[k] || 0) + r.net })
+    const rVals = rows.map((r) => rMultiple(r.t, accountsById[r.t.accountId], instrumentsBySymbol))
+
+    return {
+      rangeLabel,
+      count: rows.length,
+      net,
+      winRate: rows.length ? (wins.length / rows.length) * 100 : 0,
+      pf: grossLoss === 0 ? (grossWin > 0 ? Infinity : 0) : grossWin / grossLoss,
+      expDollar: rows.length ? net / rows.length : 0,
+      expR: expectancyR(rVals),
+      maxDD: maxDrawdown(equity),
+      avgWin: wins.length ? grossWin / wins.length : 0,
+      avgLoss: losses.length ? grossLoss / losses.length : 0,
+      byStrategy: Object.entries(byStratMap).map(([name, value]) => ({ name, value: Math.round(value) })).sort((a, b) => b.value - a.value),
+      equity,
+      generatedAt: now.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+    }
+  }
+
+  const downloadBlob = (content, type, filename) => {
+    const blob = new Blob([content], { type })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportReportHTML = () => {
+    const s = buildStats()
+    downloadBlob(buildReportHTML(s), 'text/html', `pnledger-report-${range}-${new Date().toISOString().slice(0, 10)}.html`)
+  }
+  const exportReportMd = () => {
+    const s = buildStats()
+    downloadBlob(buildReportMarkdown(s), 'text/markdown', `pnledger-report-${range}-${new Date().toISOString().slice(0, 10)}.md`)
+  }
 
   const addStrategy = async () => { const n = prompt('New strategy name'); if (n?.trim()) await db.strategies.add({ name: n.trim(), archived: 0 }) }
   const addRule = async () => { const n = prompt('New rule (a yes/no you ask yourself each trade)'); if (n?.trim()) await db.ruleItems.add({ text: n.trim(), order: ruleItems.length, archived: 0 }) }
@@ -16,7 +80,7 @@ export default function Settings() {
 
   const exportData = async () => {
     setBusy('export')
-    const tables = ['firms', 'accounts', 'instruments', 'trades', 'strategies', 'ruleItems', 'mistakeTags', 'recaps', 'accountEvents', 'prefs']
+    const tables = ['firms', 'accounts', 'instruments', 'trades', 'strategies', 'ruleItems', 'mistakeTags', 'recaps', 'accountEvents', 'prefs', 'plans', 'savedViews']
     const dump = {}
     for (const t of tables) {
       const rows = await db[t].toArray()
@@ -104,6 +168,21 @@ export default function Settings() {
         </p>
         <div className="row">
           <button className="btn" onClick={exportData} disabled={busy === 'export'}><Download size={14} /> Export backup (JSON)</button>
+        </div>
+
+        <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Share2 size={14} /> Share a report</div>
+        <p className="dim" style={{ fontSize: 12.5, marginTop: 0 }}>
+          A clean performance report you can send to trading partners — stats only, no account numbers or screenshots. The HTML file opens in any browser and prints to PDF.
+        </p>
+        <div className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select value={range} onChange={(e) => setRange(e.target.value)}>
+            <option value="all">All time</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="ytd">Year to date</option>
+          </select>
+          <button className="btn" onClick={exportReportHTML}><Share2 size={14} /> Export report (HTML)</button>
+          <button className="btn" onClick={exportReportMd}><Download size={14} /> Summary (Markdown)</button>
         </div>
       </div>
 

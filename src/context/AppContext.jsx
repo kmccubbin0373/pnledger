@@ -19,6 +19,8 @@ export function AppProvider({ children }) {
   const trades = useLiveQuery(() => db.trades.toArray(), [], [])
   const events = useLiveQuery(() => db.accountEvents.toArray(), [], [])
   const recaps = useLiveQuery(() => db.recaps.toArray(), [], [])
+  const plans = useLiveQuery(() => db.plans.toArray(), [], [])
+  const savedViews = useLiveQuery(() => db.savedViews.toArray(), [], [])
   const prefsRow = useLiveQuery(() => db.prefs.toCollection().first(), [], null)
 
   // Global account scope used by Dashboard / Calendar / Analytics filters.
@@ -85,6 +87,8 @@ export function AppProvider({ children }) {
     trades: trades || [],
     events: events || [],
     recaps: recaps || [],
+    plans: plans || [],
+    savedViews: savedViews || [],
     prefs: prefsRow || { maxTradesPerDay: 3 },
     instrumentsBySymbol,
     firmsById,

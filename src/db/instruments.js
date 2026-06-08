@@ -64,6 +64,8 @@ export const BROKER_COMMISSION_DEFAULTS = {
   Tradier: 0.35,
   'Public.com': 0.0,
   Robinhood: 0.0,
+  TopstepX: 0.4,
+  NinjaTrader: 0.4,
   Other: 0.0,
 }
 

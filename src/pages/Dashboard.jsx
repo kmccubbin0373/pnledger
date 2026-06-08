@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
-import { TrendingUp, CalendarDays, ClipboardCheck, Flame, AlertCircle, NotebookPen } from 'lucide-react'
+import { TrendingUp, CalendarDays, ClipboardCheck, Flame, AlertCircle, NotebookPen, Target } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Stat, ScopeBar, Empty, Bar } from '../components/ui'
-import { computePnl } from '../lib/pnl'
+import { computePnl, rMultiple, expectancyR } from '../lib/pnl'
 import { fmtMoney, fmtPct, todayISO } from '../lib/format'
 
 function startOfWeekISO() {
@@ -13,7 +13,7 @@ function startOfWeekISO() {
 }
 
 export default function Dashboard({ onNewTrade }) {
-  const { scopedTrades, accountsById, instrumentsBySymbol, ruleItems, prefs } = useApp()
+  const { scopedTrades, accountsById, instrumentsBySymbol, ruleItems, prefs, plans } = useApp()
   const today = todayISO()
   const weekStart = startOfWeekISO()
 
@@ -48,6 +48,19 @@ export default function Dashboard({ onNewTrade }) {
       else break
     }
 
+    // expectancy + average R (week)
+    const weekNets = week.map((r) => r.net)
+    const expDollarWeek = weekNets.length ? weekNets.reduce((s, n) => s + n, 0) / weekNets.length : 0
+    const weekR = week.map((r) => rMultiple(r.t, accountsById[r.t.accountId], instrumentsBySymbol))
+    const expRWeek = expectancyR(weekR)
+
+    // best / worst day (all scoped)
+    const byDay = {}
+    withPnl.forEach((r) => { if (r.t.date) byDay[r.t.date] = (byDay[r.t.date] || 0) + r.net })
+    const dayEntries = Object.entries(byDay)
+    const bestDay = dayEntries.length ? dayEntries.reduce((a, b) => (b[1] > a[1] ? b : a)) : null
+    const worstDay = dayEntries.length ? dayEntries.reduce((a, b) => (b[1] < a[1] ? b : a)) : null
+
     // rule following (week)
     let answered = 0, followed = 0
     week.forEach((r) => ruleItems.forEach((ri) => { const v = r.t.rulesChecked?.[ri.id]; if (v === true || v === false) { answered++; if (v) followed++ } }))
@@ -58,6 +71,7 @@ export default function Dashboard({ onNewTrade }) {
       strategies, stratMax, mistakes, mistakeMax, streak, streakType,
       ruleRate: answered ? (followed / answered) * 100 : null,
       todays: todays.sort((a, b) => (b.t.createdAt || 0) - (a.t.createdAt || 0)),
+      expDollarWeek, expRWeek, bestDay, worstDay,
     }
   }, [scopedTrades, accountsById, instrumentsBySymbol, ruleItems, today, weekStart])
 
@@ -81,10 +95,33 @@ export default function Dashboard({ onNewTrade }) {
         <Stat label="Rule following" icon={<ClipboardCheck size={13} />} value={data.ruleRate == null ? '—' : fmtPct(data.ruleRate)} sub="this week" />
         <Stat label="Streak" icon={<Flame size={13} />} value={data.streak ? `${data.streak}${data.streakType ? 'W' : 'L'}` : '—'} sub={data.streak ? `current ${data.streakType ? 'win' : 'loss'} streak` : 'no trades'} />
         <Stat feature label="Trades left" icon={<AlertCircle size={13} />} value={tradesLeft} sub={`${prefs.maxTradesPerDay ?? 3} max · ${data.todayCount} used`} />
+        <Stat label="Expectancy" icon={<TrendingUp size={13} />} value={fmtMoney(data.expDollarWeek, { sign: true })} sub="per trade · this week" tone={data.expDollarWeek >= 0 ? 'pos' : 'neg'} />
+        <Stat label="Avg R" icon={<TrendingUp size={13} />} value={data.expRWeek == null ? '—' : `${data.expRWeek >= 0 ? '+' : ''}${data.expRWeek.toFixed(2)}R`} sub="this week" tone={data.expRWeek == null ? undefined : data.expRWeek >= 0 ? 'pos' : 'neg'} />
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: '2fr 1fr', alignItems: 'start' }}>
         <div className="grid">
+          <div className="card">
+            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Target size={14} /> Today's plan</div>
+            {(() => {
+              const todayPlan = plans.find((p) => p.date === today)
+              if (!todayPlan) return <div className="dim" style={{ fontSize: 12 }}>No plan set for today. Set one on the Plan tab before you trade.</div>
+              const maxLoss = todayPlan.maxLossDollars
+              const breached = maxLoss != null && maxLoss !== '' && data.todayPnl <= -Math.abs(Number(maxLoss))
+              return (
+                <div style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                  {todayPlan.bias && <span className="pill neutral" style={{ marginRight: 6 }}>{todayPlan.bias}</span>}
+                  {todayPlan.lookingFor && <div style={{ marginTop: 6 }}><strong className="dim">Hunting:</strong> {todayPlan.lookingFor}</div>}
+                  {todayPlan.avoiding && <div style={{ marginTop: 4 }}><strong className="dim">Avoiding:</strong> {todayPlan.avoiding}</div>}
+                  {maxLoss != null && maxLoss !== '' && (
+                    <div className={`num ${breached ? 'neg' : ''}`} style={{ marginTop: 6, fontSize: 12 }}>
+                      Daily max loss {fmtMoney(-Math.abs(Number(maxLoss)))} · {breached ? 'BREACHED — stop trading' : `${fmtMoney(data.todayPnl, { sign: true })} so far`}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
           <div className="card">
             <div className="card-title">P/L by strategy · this week</div>
             {data.strategies.length === 0 ? <div className="dim" style={{ fontSize: 12 }}>No trades this week.</div> :

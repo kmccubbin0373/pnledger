@@ -3,6 +3,7 @@ import { Plus, X, Tag, ListChecks, AlertTriangle, Gauge, Download, Upload, Penci
 import { useApp } from '../context/AppContext'
 import { Modal } from '../components/ui'
 import db from '../db/db'
+import RecapFieldsManager from '../components/RecapFieldsManager'
 import { fmtNum } from '../lib/format'
 import { computePnl, rMultiple, expectancyR, maxDrawdown } from '../lib/pnl'
 import { buildReportHTML, buildReportMarkdown } from '../lib/report'
@@ -80,12 +81,12 @@ export default function Settings() {
 
   const exportData = async () => {
     setBusy('export')
-    const tables = ['firms', 'accounts', 'instruments', 'trades', 'strategies', 'ruleItems', 'mistakeTags', 'recaps', 'accountEvents', 'prefs', 'plans', 'savedViews']
+    const tables = ['firms', 'accounts', 'instruments', 'trades', 'strategies', 'ruleItems', 'mistakeTags', 'recaps', 'accountEvents', 'prefs', 'plans', 'savedViews', 'recapFields']
     const dump = {}
     for (const t of tables) {
       const rows = await db[t].toArray()
       // strip screenshot blobs from JSON export (kept local); note count instead
-      if (t === 'trades') dump[t] = rows.map((r) => ({ ...r, screenshots: (r.screenshots || []).length }))
+      if (t === 'trades' || t === 'plans') dump[t] = rows.map((r) => ({ ...r, screenshots: (r.screenshots || []).length }))
       else dump[t] = rows
     }
     const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' })
@@ -135,6 +136,8 @@ export default function Settings() {
           <div className="dim" style={{ fontSize: 11.5, marginTop: 8 }}>Drives the “trades left today” stat on the dashboard.</div>
         </div>
       </div>
+
+      <RecapFieldsManager />
 
       {/* Instruments */}
       <div className="card flush" style={{ marginTop: 14 }}>

@@ -1,5 +1,6 @@
 import db from './db'
 import { DEFAULT_FUTURES, DEFAULT_OPTIONS } from './instruments'
+import { seedRecapFields } from './recapFields'
 
 const DEFAULT_STRATEGIES = [
   'iFVG',
@@ -59,4 +60,6 @@ export async function seedIfEmpty() {
   if ((await db.prefs.count()) === 0) {
     await db.prefs.add({ maxTradesPerDay: 3, dashboardScope: 'all' })
   }
+
+  await seedRecapFields(db)
 }

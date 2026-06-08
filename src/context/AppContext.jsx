@@ -20,6 +20,7 @@ export function AppProvider({ children }) {
   const events = useLiveQuery(() => db.accountEvents.toArray(), [], [])
   const recaps = useLiveQuery(() => db.recaps.toArray(), [], [])
   const plans = useLiveQuery(() => db.plans.toArray(), [], [])
+  const recapFields = useLiveQuery(() => db.recapFields.orderBy('order').toArray(), [], [])
   const savedViews = useLiveQuery(() => db.savedViews.toArray(), [], [])
   const prefsRow = useLiveQuery(() => db.prefs.toCollection().first(), [], null)
 
@@ -88,6 +89,7 @@ export function AppProvider({ children }) {
     events: events || [],
     recaps: recaps || [],
     plans: plans || [],
+    recapFields: recapFields || [],
     savedViews: savedViews || [],
     prefs: prefsRow || { maxTradesPerDay: 3 },
     instrumentsBySymbol,

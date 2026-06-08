@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar as RBar, Cell, CartesianGrid } from 'recharts'
 import { useApp } from '../context/AppContext'
 import { Stat, ScopeBar, Empty } from '../components/ui'
+import JournalInsights from '../components/JournalInsights'
 import { computePnl, rMultiple, exitEfficiency, expectancyR, maxDrawdown } from '../lib/pnl'
 import { fmtMoney, fmtPct, fmtNum } from '../lib/format'
 import { TrendingUp } from 'lucide-react'
@@ -231,6 +232,9 @@ export default function Analytics() {
           </tbody>
         </table>
       </div>
+
+      <div className="section-label" style={{ marginTop: 18 }}>Journal insights</div>
+      <JournalInsights />
     </>
   )
 }

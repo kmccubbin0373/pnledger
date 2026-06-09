@@ -1,6 +1,6 @@
 {
   "name": "pnledger",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "P n Ledger — a local-first futures and options day trading journal",
   "author": "Kyle",
@@ -44,6 +44,7 @@
       }
     ],
     "artifactName": "PnLedger-Setup-${version}.${ext}",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "electron/**/*"

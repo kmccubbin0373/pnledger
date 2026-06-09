@@ -113,3 +113,89 @@ export function parseRecapDoc(raw, recapFields = []) {
   result.unmatched = result.unmatched.filter((u) => !drop.includes(normalizeLabel(u.label)))
   return result
 }
+
+// ── Recap export ─────────────────────────────────────────────────────────────
+
+const EXPORT_SECTION_ORDER = [
+  'Day', 'Pre-session plan', 'Execution review',
+  'Discipline', 'Reflection', 'Wellbeing', 'Custom', 'Other',
+]
+
+function fmtValue(value) {
+  if (Array.isArray(value)) return value.join(', ')
+  return String(value ?? '').trim()
+}
+
+function buildRecapSections(recap, recapFields) {
+  const byKey = Object.fromEntries(recapFields.map((f) => [f.key, f]))
+  const bySection = {}
+  for (const [key, value] of Object.entries(recap.fields || {})) {
+    const field = byKey[key]
+    if (!field || field.archived) continue
+    const v = fmtValue(value)
+    if (!v) continue
+    ;(bySection[field.section || 'Other'] ||= []).push({ field, v })
+  }
+  for (const arr of Object.values(bySection)) {
+    arr.sort((a, b) => (a.field.order ?? 999) - (b.field.order ?? 999))
+  }
+  return bySection
+}
+
+export function buildRecapTxt(recap, recapFields = []) {
+  const date = recap.date || ''
+  const bySection = buildRecapSections(recap, recapFields)
+  const lines = [`DAILY RECAP — ${date}`, '', `Date: ${date}`]
+
+  for (const { field, v } of bySection['Day'] || []) {
+    lines.push(`${field.label}: ${v}`)
+  }
+  if (recap.followedPlan) lines.push(`Did you follow the plan? ${recap.followedPlan}`)
+  lines.push('')
+
+  let n = 1
+  for (const section of EXPORT_SECTION_ORDER.filter((s) => s !== 'Day')) {
+    const entries = bySection[section]
+    if (!entries?.length) continue
+    lines.push(`${n}. ${section}`, '')
+    for (const { field, v } of entries) {
+      if (field.type === 'longtext') {
+        lines.push(`${field.label}:`, v, '')
+      } else {
+        lines.push(`${field.label}: ${v}`)
+      }
+    }
+    lines.push('')
+    n++
+  }
+  return lines.join('\n').trim()
+}
+
+export function buildRecapMd(recap, recapFields = []) {
+  const date = recap.date || ''
+  const bySection = buildRecapSections(recap, recapFields)
+  const lines = [`# Daily Recap — ${date}`, '', `**Date:** ${date}`]
+
+  for (const { field, v } of bySection['Day'] || []) {
+    lines.push(`**${field.label}:** ${v}`)
+  }
+  if (recap.followedPlan) lines.push(`**Did you follow the plan?** ${recap.followedPlan}`)
+  lines.push('')
+
+  let n = 1
+  for (const section of EXPORT_SECTION_ORDER.filter((s) => s !== 'Day')) {
+    const entries = bySection[section]
+    if (!entries?.length) continue
+    lines.push(`## ${n}. ${section}`, '')
+    for (const { field, v } of entries) {
+      if (field.type === 'longtext') {
+        lines.push(`**${field.label}**`, '', v, '')
+      } else {
+        lines.push(`**${field.label}:** ${v}`)
+      }
+    }
+    lines.push('')
+    n++
+  }
+  return lines.join('\n').trim()
+}

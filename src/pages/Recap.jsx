@@ -1,15 +1,28 @@
 import { useState, useMemo, useRef } from 'react'
-import { NotebookPen, Plus, Trash2, Upload, X } from 'lucide-react'
+import { FileText, NotebookPen, Plus, Trash2, Upload, X } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { Modal, Empty } from '../components/ui'
 import db from '../db/db'
 import { computePnl } from '../lib/pnl'
 import { fmtMoney, todayISO } from '../lib/format'
 import { SECTION_ORDER } from '../db/recapFields'
-import { parseRecapDoc, coerceForField, slugifyKey } from '../lib/recapio'
+import { parseRecapDoc, coerceForField, slugifyKey, buildRecapTxt, buildRecapMd } from '../lib/recapio'
+
+function downloadText(content, filename, type) {
+  const blob = new Blob([content], { type })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function Recap() {
   const { recaps, recapFields, scopedTrades, accountsById, instrumentsBySymbol } = useApp()
+  const handleExport = (recap, fmt) => {
+    const content = fmt === 'md' ? buildRecapMd(recap, recapFields) : buildRecapTxt(recap, recapFields)
+    const ext = fmt === 'md' ? '.md' : '.txt'
+    const type = fmt === 'md' ? 'text/markdown' : 'text/plain'
+    downloadText(content, `recap-${recap.date}${ext}`, type)
+  }
   const [open, setOpen] = useState(null)
   const importRef = useRef()
 
@@ -57,7 +70,7 @@ export default function Recap() {
         <Empty icon={<NotebookPen size={28} />} title="No recaps yet">Write your first end-of-day recap, or import one from your journal.</Empty>
       ) : (
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-          {sorted.map((r) => <RecapCard key={r.id} recap={r} net={netByDate[r.date] || 0} onClick={() => setOpen(r)} />)}
+          {sorted.map((r) => <RecapCard key={r.id} recap={r} net={netByDate[r.date] || 0} onClick={() => setOpen(r)} onExport={handleExport} />)}
         </div>
       )}
 
@@ -66,7 +79,7 @@ export default function Recap() {
   )
 }
 
-function RecapCard({ recap, net, onClick }) {
+function RecapCard({ recap, net, onClick, onExport }) {
   const grade = recap.fields?.grade
   const disc = recap.fields?.disciplineScore
   const snippet = recap.fields?.lesson || recap.fields?.mainMistake || recap.fields?.toFix || ''
@@ -81,6 +94,10 @@ function RecapCard({ recap, net, onClick }) {
         </div>
       </div>
       {snippet ? <div style={{ fontSize: 12.5, marginTop: 6, color: 'var(--text-2)' }}>{String(snippet).slice(0, 140)}{String(snippet).length > 140 ? '…' : ''}</div> : null}
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
+        <button className="btn ghost sm" onClick={() => onExport(recap, 'txt')}><FileText size={12} /> .txt</button>
+        <button className="btn ghost sm" onClick={() => onExport(recap, 'md')}><FileText size={12} /> .md</button>
+      </div>
     </div>
   )
 }
@@ -151,6 +168,10 @@ function RecapModal({ recap, onClose }) {
     <Modal title={editing ? 'Edit recap' : 'Daily recap'} icon={<NotebookPen size={16} />} onClose={onClose}
       footer={<>
         {editing && <button className="btn danger" style={{ marginRight: 'auto' }} onClick={async () => { await db.recaps.delete(recap.id); onClose() }}><Trash2 size={14} /> Delete</button>}
+        {editing && <>
+          <button className="btn ghost sm" onClick={() => downloadText(buildRecapTxt(recap, recapFields), `recap-${recap.date}.txt`, 'text/plain')}><FileText size={12} /> .txt</button>
+          <button className="btn ghost sm" onClick={() => downloadText(buildRecapMd(recap, recapFields), `recap-${recap.date}.md`, 'text/markdown')}><FileText size={12} /> .md</button>
+        </>}
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn primary" onClick={save}>Save recap</button>
       </>}>

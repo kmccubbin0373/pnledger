@@ -6,6 +6,7 @@ import db from '../db/db'
 import { computePnl } from '../lib/pnl'
 import { fmtMoney, todayISO } from '../lib/format'
 import { buildPlanTxt, buildPlanMd, parsePlanText } from '../lib/planio'
+import { exportPlanPdf } from '../lib/pdfExport'
 
 function downloadText(content, filename, type) {
   const blob = new Blob([content], { type })
@@ -75,6 +76,7 @@ export default function Plan() {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10 }} onClick={(e) => e.stopPropagation()}>
                   <button className="btn ghost sm" onClick={() => downloadText(buildPlanTxt(p), `plan-${p.date}.txt`, 'text/plain')}><FileText size={12} /> .txt</button>
                   <button className="btn ghost sm" onClick={() => downloadText(buildPlanMd(p), `plan-${p.date}.md`, 'text/markdown')}><FileText size={12} /> .md</button>
+                  <button className="btn ghost sm" onClick={() => exportPlanPdf(p)}>📄 PDF</button>
                   {(p.screenshots || []).length > 0 && <span className="dim" style={{ fontSize: 11, marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ImageIcon size={12} /> {p.screenshots.length}</span>}
                 </div>
               </div>

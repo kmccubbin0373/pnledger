@@ -7,6 +7,7 @@ import { computePnl } from '../lib/pnl'
 import { fmtMoney, todayISO } from '../lib/format'
 import { SECTION_ORDER } from '../db/recapFields'
 import { parseRecapDoc, coerceForField, slugifyKey, buildRecapTxt, buildRecapMd } from '../lib/recapio'
+import { exportDailyReport, exportTradesPdf } from '../lib/pdfExport'
 
 function downloadText(content, filename, type) {
   const blob = new Blob([content], { type })
@@ -104,6 +105,19 @@ function RecapCard({ recap, net, onClick, onExport }) {
 
 function RecapModal({ recap, onClose }) {
   const { recapFields, plans, scopedTrades, accountsById, instrumentsBySymbol } = useApp()
+  const handlePdfExport = async (type) => {
+    const dateTrades = scopedTrades.filter((t) => t.date === date)
+    const datePlan   = plans.find((p) => p.date === date) || null
+    if (type === 'report') {
+      await exportDailyReport(date, {
+        plan: datePlan, trades: dateTrades,
+        recap: { ...recap, fields: values, followedPlan },
+        recapFields, accountsById, instrumentsBySymbol,
+      })
+    } else if (type === 'trades') {
+      await exportTradesPdf(date, dateTrades, { accountsById, instrumentsBySymbol })
+    }
+  }
   const editing = !!recap.id
   const importedFrom = !!recap._imported
 
@@ -168,6 +182,12 @@ function RecapModal({ recap, onClose }) {
     <Modal title={editing ? 'Edit recap' : 'Daily recap'} icon={<NotebookPen size={16} />} onClose={onClose}
       footer={<>
         {editing && <button className="btn danger" style={{ marginRight: 'auto' }} onClick={async () => { await db.recaps.delete(recap.id); onClose() }}><Trash2 size={14} /> Delete</button>}
+        {editing && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn ghost sm" onClick={() => handlePdfExport('report')} title="Export full daily report (plan + trades + recap)">📄 Full PDF</button>
+            <button className="btn ghost sm" onClick={() => handlePdfExport('trades')} title="Export trades only">Trades PDF</button>
+          </div>
+        )}
         {editing && <>
           <button className="btn ghost sm" onClick={() => downloadText(buildRecapTxt(recap, recapFields), `recap-${recap.date}.txt`, 'text/plain')}><FileText size={12} /> .txt</button>
           <button className="btn ghost sm" onClick={() => downloadText(buildRecapMd(recap, recapFields), `recap-${recap.date}.md`, 'text/markdown')}><FileText size={12} /> .md</button>

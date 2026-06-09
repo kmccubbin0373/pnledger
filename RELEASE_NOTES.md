@@ -1,5 +1,26 @@
 # Release Notes
 
+## v0.3.2 — PDF Export (2026-06-09)
+
+### What's new
+
+**Three PDF export actions**
+
+- **Full PDF** — one-click daily report: plan details + all setup screenshots, every trade with entry/exit prices + trade screenshots, and your full recap/review. Shows a P/L summary strip at the top. Available in the recap modal footer when editing a saved recap.
+- **Trades PDF** — trades-only export for the date. Same button, same modal.
+- **Plan PDF** — exports your trading plan (bias, setups, avoids, stop rules, notes, setup screenshots) as a clean PDF. Button appears on each plan card alongside the existing .txt / .md buttons.
+
+All three PDFs share a dark navy header bar with the app name, date, and section label. Long-text fields wrap cleanly; screenshots are embedded and scaled proportionally. Missing screenshots are silently skipped — no crash.
+
+### Files changed
+
+- `src/lib/pdfExport.js` — new PDF engine (jsPDF-based)
+- `src/pages/Recap.jsx` — Full PDF and Trades PDF buttons in modal footer
+- `src/pages/Plan.jsx` — Plan PDF button on plan cards
+- `package.json` — added `jspdf` dependency
+
+---
+
 ## v0.3.1 — Recap Export (2026-06-09)
 
 ### What's new

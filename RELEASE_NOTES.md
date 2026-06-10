@@ -1,5 +1,22 @@
 # Release Notes
 
+## v0.4.0 — macOS Support (2026-06-10)
+
+### What's new
+
+**P n Ledger now builds and runs on macOS**
+
+- Added `build/icon.icns` (full multi-resolution app icon set, 16px–1024px) so `npm run electron:build` produces a properly-iconed `.dmg` on macOS instead of falling back to the default Electron icon.
+- Added a `mac.category` (`public.app-category.finance`) to the electron-builder config so the app is categorized correctly in Launchpad / Finder.
+- Verified the Electron main process and preload script are platform-agnostic (no Windows-only paths or APIs), so the existing codebase needed no further changes to run on macOS.
+
+### Files changed
+
+- `build/icon.icns` — new macOS app icon
+- `package.json` — added `mac.category`, version bump to 0.4.0
+
+---
+
 ## v0.3.2 — PDF Export (2026-06-09)
 
 ### What's new
